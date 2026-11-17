@@ -45,7 +45,15 @@ input.code{width:100%;background:var(--bg);border:1px solid var(--line);color:va
 #netStatus{margin-top:12px;color:var(--muted);text-align:center;line-height:1.5}
 #netStatus b.code{display:inline-block;font-size:34px;letter-spacing:8px;color:var(--gold);margin:6px 0}
 
-.board{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;aspect-ratio:1;background:var(--line);padding:3px;border-radius:14px;width:100%}
+.board{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;aspect-ratio:1;background:var(--line);padding:3px;border-radius:14px;width:100%;isolation:isolate;transition:opacity .3s,filter .3s,box-shadow .3s}
+.shipov{position:relative;z-index:1;pointer-events:none;min-width:0;min-height:0}
+.shipov svg{position:absolute;inset:1px;width:calc(100% - 2px);height:calc(100% - 2px);overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+.shipov.sunk{animation:reveal .55s cubic-bezier(.2,1.4,.4,1)}
+.shipov.ghost{opacity:.5}
+.shipov .fire{animation:flick .45s infinite alternate;transform-box:fill-box;transform-origin:center}
+@keyframes reveal{from{opacity:0;transform:scale(1.35)}to{opacity:1;transform:none}}
+@keyframes flick{to{opacity:.55;transform:scale(.75)}}
+#myBoard .cell.ship{background:var(--water)}
 .cell{border:0;padding:0;background:var(--water);border-radius:3px;position:relative;aspect-ratio:1;min-width:0}
 .cell.ship{background:var(--ship)}
 .cell.sel{background:var(--accent)}
@@ -53,19 +61,25 @@ input.code{width:100%;background:var(--bg);border:1px solid var(--line);color:va
 .cell.miss::after{content:"";position:absolute;inset:36%;border-radius:50%;background:var(--miss)}
 .cell.blocked::after{content:"";position:absolute;inset:44%;border-radius:50%;background:rgba(220,235,255,.18)}
 .cell.hit{background:var(--hit)}
-.cell.hit::after{content:"";position:absolute;inset:30%;border-radius:50%;background:#ffd0cc;animation:pulse 1.2s infinite}
+.cell.hit::after{content:"";position:absolute;inset:30%;border-radius:50%;background:#ffd0cc;animation:pulse 1.2s infinite;z-index:2}
+#myBoard .cell.hit::after{background:#ff7a1a;inset:24%;box-shadow:0 0 6px #ffb347}
 .cell.sunk{background:var(--sunk)}
-.cell.sunk::after{content:"✕";position:absolute;inset:0;display:grid;place-items:center;color:#ff9b93;font-size:min(3.4vw,16px);font-weight:700}
-.cell.last{outline:2px solid var(--gold);outline-offset:-2px;z-index:1}
+.cell.last::before{content:"";position:absolute;inset:0;border:2px solid var(--gold);border-radius:3px;z-index:3}
 .cell.bad{animation:shake .3s}
 @keyframes pulse{50%{opacity:.4}}
 @keyframes shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
 #enemyBoard.armed{box-shadow:0 0 0 2px var(--ok),0 0 24px rgba(58,210,159,.25)}
 #enemyBoard.armed .cell:not(.miss):not(.hit):not(.sunk):not(.blocked):active{background:var(--water-hi)}
 
-.status{text-align:center;font-size:19px;font-weight:700;margin:6px 0 12px;min-height:26px}
-.status.mine{color:var(--ok)}
-.status.theirs{color:var(--muted)}
+.status{text-align:center;font-size:21px;font-weight:800;margin:4px 0 12px;padding:13px 10px;border-radius:16px;background:var(--panel);color:var(--muted);transition:background .3s,color .3s}
+.status.mine{background:var(--ok);color:#032419;animation:glow 1.6s infinite}
+.status.theirs{background:#2b1b26;color:#ff9b93}
+@keyframes glow{0%{box-shadow:0 0 0 0 rgba(58,210,159,.6)}70%{box-shadow:0 0 0 12px rgba(58,210,159,0)}100%{box-shadow:0 0 0 0 rgba(58,210,159,0)}}
+#battle.theirs #enemyBoard{opacity:.45;filter:grayscale(.6)}
+#battle.theirs #myBoard{box-shadow:0 0 0 2px var(--hit),0 0 20px rgba(255,90,78,.35)}
+#turnFlash{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font-size:44px;font-weight:900;color:#032419;background:var(--ok);padding:16px 30px;border-radius:22px;z-index:15;pointer-events:none;box-shadow:0 10px 40px rgba(58,210,159,.55);opacity:0;white-space:nowrap}
+#turnFlash.go{animation:flash 1.2s ease forwards}
+@keyframes flash{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}25%{transform:translate(-50%,-50%) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(1)}}
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .icon{background:var(--panel);border:0;color:var(--text);border-radius:12px;padding:8px 12px;font-size:15px;font-family:inherit}
 .small{font-size:13px;color:var(--muted)}
@@ -177,12 +191,14 @@ input.code{width:100%;background:var(--bg);border:1px solid var(--line);color:va
   </div>
 </div>
 <div id="toast" class="hidden"></div>
+<div id="turnFlash">🎯 DIN TUR</div>
 
 <script>
 "use strict";
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const N=10, FLEET=[5,4,3,3,2];
 const NAMES={5:"hangarskib",4:"slagskib",3:"krydser",2:"destroyer"};
+const EN={5:"et",4:"et",3:"en",2:"en"},DIN={5:"Dit",4:"Dit",3:"Din",2:"Din"};
 const idx=(r,c)=>r*N+c;
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 
@@ -264,20 +280,61 @@ function aiPick(view,rem,hard){
   return pick(bs.length?bs:open);
 }
 
+/* ---------- Skibstegninger ---------- */
+function shipSVG(l,v,st){
+  const W=l*10,c=st==="sunk"?{h:"#77808e",s:"#ff5a4e",d:"#565e6b",k:"#22262d"}:{h:"#b8c7d7",s:"#56697f",d:"#8497ad",k:"#34445a"};
+  let p='<path d="M0.8,5 L3.6,1.3 H'+(W-1.8)+' Q'+(W-.5)+',1.3 '+(W-.5)+',3 V7 Q'+(W-.5)+',8.7 '+(W-1.8)+',8.7 H3.6 Z" fill="'+c.h+'" stroke="'+c.s+'" stroke-width=".7"/>';
+  const tur=(x,dir)=>'<line x1="'+x+'" y1="5" x2="'+(x+dir*3.4)+'" y2="5" stroke="'+c.k+'" stroke-width=".9" stroke-linecap="round"/><circle cx="'+x+'" cy="5" r="1.7" fill="'+c.d+'" stroke="'+c.k+'" stroke-width=".5"/>';
+  const sup=(x,w)=>'<rect x="'+x+'" y="3" width="'+w+'" height="4" rx=".8" fill="'+c.d+'" stroke="'+c.k+'" stroke-width=".5"/><circle cx="'+(x+w/2)+'" cy="5" r=".9" fill="'+c.k+'"/>';
+  if(l===5)p+='<rect x="4" y="2.4" width="'+(W-6.5)+'" height="5.2" rx=".6" fill="'+c.d+'"/><line x1="6" y1="5" x2="'+(W-4)+'" y2="5" stroke="'+c.h+'" stroke-width=".5" stroke-dasharray="2 1.5"/><rect x="'+(W*.55)+'" y="1.5" width="6" height="2" rx=".5" fill="'+c.k+'"/>';
+  else if(l===4)p+=tur(7,-1)+tur(12.5,-1)+sup(W/2-3,8)+tur(W-7,1);
+  else if(l===3)p+=tur(6.5,-1)+sup(W/2-3,6)+tur(W-6,1);
+  else p+=tur(5.5,-1)+sup(W/2,6);
+  if(st==="sunk")for(let i=0;i<l;i++){const x=i*10+5+(i%2?1.5:-1.5),y=i%2?4:6;
+    p+='<g class="fire" style="animation-delay:-'+(i*.17).toFixed(2)+'s"><circle cx="'+x+'" cy="'+y+'" r="2.1" fill="#ff7a1a" opacity=".9"/><circle cx="'+x+'" cy="'+y+'" r="1" fill="#ffd54a"/></g>'}
+  return'<svg viewBox="0 0 '+(v?"10 "+W:W+" 10")+'" preserveAspectRatio="none">'+(v?'<g transform="translate(10,0) rotate(90)">'+p+"</g>":p)+"</svg>";
+}
+function renderShips(el,list){
+  const want=new Map();
+  for(const s of list)if(s.cells)want.set(s.st+":"+s.cells.map(x=>x.join(",")).join(";"),s);
+  for(const o of[...el.querySelectorAll(".shipov")]){if(want.has(o.dataset.k))want.delete(o.dataset.k);else o.remove()}
+  for(const[k,s]of want){
+    const cs=[...s.cells].sort((a,b)=>a[0]-b[0]||a[1]-b[1]),[r0,c0]=cs[0],l=cs.length,v=l>1&&cs[1][0]!==r0;
+    const d=document.createElement("div");d.className="shipov "+s.st;d.dataset.k=k;
+    d.style.gridArea=(r0+1)+" / "+(c0+1)+" / span "+(v?l:1)+" / span "+(v?1:l);
+    d.innerHTML=shipSVG(l,v,s.st);el.appendChild(d);
+  }
+}
+
 /* ---------- Lyd og vibration ---------- */
-let AC=null;
-function tone(f,d,type,vol,slide){try{
-  AC=AC||new(window.AudioContext||window.webkitAudioContext)();
-  const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;
+// Telefonhøjttalere gengiver næsten ikke bas, så lydene bygger på støj og mellemtone (1-3 kHz) gennem en kompressor.
+let AC=null,MG=null,NB=null;
+function ac(){try{
+  if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;AC=new C();
+    const k=AC.createDynamicsCompressor();k.threshold.value=-20;k.knee.value=6;k.ratio.value=10;k.attack.value=.002;k.release.value=.25;
+    MG=AC.createGain();MG.gain.value=1.8;MG.connect(k);k.connect(AC.destination)}
+  if(AC.state==="suspended")AC.resume();return AC;
+}catch(e){return null}}
+["pointerdown","touchstart","keydown"].forEach(ev=>document.addEventListener(ev,ac,{passive:true}));
+function noiseBuf(){if(!NB){const n=AC.sampleRate*1.6|0;NB=AC.createBuffer(1,n,AC.sampleRate);const d=NB.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1}return NB}
+function tone(f,d,type,vol,slide,delay=0){const a=ac();if(!a)return;try{
+  const t=a.currentTime+delay,o=a.createOscillator(),g=a.createGain();
   o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);
-  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+d);
-  o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d);
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.008);g.gain.exponentialRampToValueAtTime(.0008,t+d);
+  o.connect(g);g.connect(MG);o.start(t);o.stop(t+d+.05);
+}catch(e){}}
+function noise(d,vol,ft,f0,f1,delay=0){const a=ac();if(!a)return;try{
+  const t=a.currentTime+delay,s=a.createBufferSource(),fl=a.createBiquadFilter(),g=a.createGain();
+  s.buffer=noiseBuf();fl.type=ft;fl.frequency.setValueAtTime(f0,t);if(f1)fl.frequency.exponentialRampToValueAtTime(f1,t+d);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0008,t+d);
+  s.connect(fl);fl.connect(g);g.connect(MG);s.start(t);s.stop(t+d+.05);
 }catch(e){}}
 const vib=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
 const sfx={
-  miss(){tone(520,.28,"sine",.12,140)},
-  hit(){tone(140,.4,"sawtooth",.22,45);vib(60)},
-  sunk(){tone(110,.8,"sawtooth",.28,30);setTimeout(()=>tone(70,.6,"square",.12,30),120);vib([80,50,140])},
+  miss(){noise(.45,.45,"bandpass",2200,400);tone(760,.2,"sine",.18,260)},
+  hit(){noise(.06,1,"highpass",2500);noise(.7,1,"lowpass",4000,250);tone(1200,.12,"square",.22,350);tone(260,.4,"square",.4,80);vib([90,40,120])},
+  sunk(){sfx.hit();noise(1.4,1,"lowpass",2500,90,.22);tone(520,.9,"sawtooth",.3,60,.22);tone(180,1.1,"square",.35,40,.25);vib([90,40,120,80,300])},
+  turn(){tone(880,.14,"sine",.35,null,.35);tone(1320,.25,"sine",.35,null,.47)},
 };
 
 /* ---------- Spiltilstand ---------- */
@@ -292,7 +349,7 @@ function toast(msg,ms=2200){const t=$("#toast");t.textContent=msg;t.classList.re
 
 function makeBoard(el,onTap){
   el.innerHTML="";
-  for(let i=0;i<N*N;i++){const b=document.createElement("button");b.className="cell";b.dataset.i=i;el.appendChild(b)}
+  for(let i=0;i<N*N;i++){const b=document.createElement("button");b.className="cell";b.dataset.i=i;b.style.gridArea=((i/N|0)+1)+" / "+(i%N+1);el.appendChild(b)}
   if(onTap)el.addEventListener("click",e=>{const b=e.target.closest(".cell");if(b)onTap(+b.dataset.i,b)});
 }
 makeBoard($("#placeBoard"),placeTap);
@@ -304,8 +361,9 @@ function startMatch(mode){G.mode=mode;G.round=0;G.wins=0;G.losses=0;G.oppReadyRo
 function nextRound(){
   G.round++;
   Object.assign(G,{my:newBoard(),enemy:null,view:new Array(N*N).fill(0),aiView:null,aiRem:null,enemyRem:[...FLEET],
-    myTurn:false,started:false,over:false,myReady:false,pending:false,shots:0,hitsN:0,lastMine:-1,lastEnemy:-1,reveal:false});
-  sel=0;vert=false;
+    myTurn:false,started:false,over:false,myReady:false,pending:false,shots:0,hitsN:0,lastMine:-1,lastEnemy:-1,reveal:false,
+    enemySunk:[],again:false});
+  sel=0;vert=false;wasMine=false;
   $("#overlay").classList.add("hidden");
   $("#placeMode").textContent=G.mode==="ai"?"Mod computeren ("+(G.hard?"svær":"let")+")":"Online"+(G.extra?" · ekstra skud ved ram":"");
   show("place");renderPlace();
@@ -372,7 +430,7 @@ function begin(){
 }
 function shoot(i){
   if(!G.started||G.over||!G.myTurn||G.pending||G.view[i]!==0)return;
-  const r=i/N|0,c=i%N;
+  const r=i/N|0,c=i%N;G.again=false;
   if(G.mode==="ai")myResult(r,c,fire(G.enemy,r,c));
   else{G.pending=true;send({t:"shot",round:G.round,r,c});renderBattle()}
 }
@@ -380,17 +438,17 @@ function myResult(r,c,res){
   G.pending=false;const i=idx(r,c);G.shots++;G.lastEnemy=i;
   if(res.hit){
     G.hitsN++;G.view[i]=2;
-    if(res.sunk){markSunk(G.view,res.sunk);removeLen(G.enemyRem,res.sunk.length);sfx.sunk();toast("Du sænkede en "+NAMES[res.sunk.length]+"!")}
+    if(res.sunk){markSunk(G.view,res.sunk);G.enemySunk.push(res.sunk);removeLen(G.enemyRem,res.sunk.length);sfx.sunk();toast("Du sænkede "+EN[res.sunk.length]+" "+NAMES[res.sunk.length]+"!")}
     else sfx.hit();
   }else{G.view[i]=1;sfx.miss()}
   if(res.over){renderBattle();return finish(true)}
-  if(res.hit&&G.extra)G.myTurn=true;
+  if(res.hit&&G.extra){G.myTurn=true;G.again=true}
   else{G.myTurn=false;if(G.mode==="ai")setTimeout(aiTurn,850)}
   renderBattle();
 }
 function receiveShot(r,c){
   const res=fire(G.my,r,c);G.lastMine=idx(r,c);
-  if(res.hit){if(res.sunk){sfx.sunk();toast("Din "+NAMES[res.sunk.length]+" blev sænket")}else sfx.hit()}else sfx.miss();
+  if(res.hit){if(res.sunk){sfx.sunk();toast(DIN[res.sunk.length]+" "+NAMES[res.sunk.length]+" blev sænket")}else sfx.hit()}else sfx.miss();
   if(G.mode==="online")send({t:"res",round:G.round,r,c,hit:res.hit,sunk:res.sunk||null,over:!!res.over});
   if(res.over){G.myTurn=false;renderBattle();finish(false);return res}
   G.myTurn=!(res.hit&&G.extra);
@@ -433,14 +491,28 @@ function renderBattle(){
   if(G.over){st.textContent="Spillet er slut";st.className="status"}
   else if(!G.started){st.textContent="Venter på at modstanderen placerer sine skibe…";st.className="status theirs"}
   else if(G.pending){st.textContent="Skyder…";st.className="status mine"}
-  else if(G.myTurn){st.textContent="Din tur – skyd!";st.className="status mine"}
-  else{st.textContent=G.mode==="ai"?"Computeren sigter…":"Modstanderens tur…";st.className="status theirs"}
+  else if(G.myTurn){st.textContent=G.again?"💥 Ram! Skyd igen":"🎯 DIN TUR – skyd!";st.className="status mine"}
+  else{st.textContent=G.mode==="ai"?"🤖 Computeren sigter…":"⏳ Modstanderens tur";st.className="status theirs"}
   $("#enemyBoard").classList.toggle("armed",G.started&&G.myTurn&&!G.over);
+  $("#battle").classList.toggle("theirs",G.started&&!G.myTurn&&!G.over);
+  // skibe: sænkede fjendeskibe vises som rigtige skibe, egne skibe altid
+  const el=G.enemySunk.map(c=>({cells:c,st:"sunk"}));
+  if(G.reveal&&G.enemy)G.enemy.ships.forEach(s=>{if(s.hits<s.l)el.push({cells:s.cells,st:"ghost"})});
+  renderShips($("#enemyBoard"),el);
+  renderShips($("#myBoard"),G.my.ships.map(s=>({cells:s.cells,st:s.hits===s.l?"sunk":"alive"})));
+  turnCheck();
   $("#score").textContent=(G.wins||G.losses)?"Stilling "+G.wins+"–"+G.losses:"";
   // flådeoversigt
   const rem=[...G.enemyRem];
   $("#enemyFleet").innerHTML=FLEET.map(l=>{const alive=rem.indexOf(l);if(alive>=0)rem.splice(alive,1);return'<div class="ln'+(alive<0?" dead":"")+'">'+"<i></i>".repeat(l)+"</div>"}).join("");
   $("#myFleet").innerHTML=G.my.ships.map(s=>'<div class="ln'+(s.hits===s.l?" dead":"")+'">'+"<i></i>".repeat(s.l)+"</div>").join("");
+}
+
+let wasMine=false;
+function turnCheck(){
+  const now=G.started&&!G.over&&G.myTurn;
+  if(now&&!wasMine){const f=$("#turnFlash");f.classList.remove("go");void f.offsetWidth;f.classList.add("go");sfx.turn();setTimeout(()=>vib([40,60,40]),350)}
+  wasMine=now;
 }
 
 /* ---------- Online (PeerJS: telefonerne taler direkte sammen) ---------- */
