@@ -136,6 +136,7 @@ input.code{width:100%;background:var(--bg);border:1px solid var(--line);color:va
       <p class="label">Regler</p>
       <label class="switch">Ram giver et ekstra skud <input type="checkbox" id="extra" checked></label>
       <p class="small" style="margin:10px 0 0">Skibe må ikke røre hinanden, heller ikke på skrå. Ved online spil bestemmer den, der opretter spillet.</p>
+      <p class="small" style="margin:8px 0 0;opacity:.6">Version 3</p>
     </div>
   </section>
 
@@ -511,7 +512,7 @@ function renderBattle(){
 let wasMine=false;
 function turnCheck(){
   const now=G.started&&!G.over&&G.myTurn;
-  if(now&&!wasMine){const f=$("#turnFlash");f.classList.remove("go");void f.offsetWidth;f.classList.add("go");setTimeout(()=>vib([40,60,40]),350)}
+  if(now&&!wasMine){const f=$("#turnFlash");f.classList.remove("go");void f.offsetWidth;f.classList.add("go")}
   wasMine=now;
 }
 
