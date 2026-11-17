@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0a1626">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Søslaget">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<title>Søslaget</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{
+  --bg:#0a1626;--panel:#12233a;--panel2:#173050;--line:#1d3858;
+  --water:#0f2a47;--water-hi:#16395f;--ship:#9fb2c6;--hit:#ff5a4e;--sunk:#6e1d19;
+  --miss:rgba(220,235,255,.45);--accent:#2f9bff;--gold:#ffd54a;
+  --text:#e8f1fb;--muted:#8aa2bd;--ok:#3ad29f;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+body{min-height:100vh;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#app{max-width:520px;margin:0 auto;padding:calc(12px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom))}
+.hidden{display:none!important}
+h1{font-size:40px;margin:28px 0 4px;letter-spacing:-.5px}
+h2{font-size:20px;margin:0 0 10px}
+.sub{color:var(--muted);margin:0 0 24px}
+.card{background:var(--panel);border-radius:18px;padding:16px;margin-bottom:14px}
+.label{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:0 0 8px}
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:15px;font-size:17px;font-weight:600;color:#fff;background:var(--accent);cursor:pointer;font-family:inherit}
+.btn:active{transform:scale(.98);opacity:.9}
+.btn.sec{background:var(--panel2);color:var(--text)}
+.btn:disabled{opacity:.35}
+.row{display:flex;gap:10px}
+.row>*{flex:1}
+.seg{display:flex;background:var(--bg);border-radius:12px;padding:3px}
+.seg button{flex:1;border:0;background:none;color:var(--muted);padding:9px;border-radius:10px;font-size:15px;font-weight:600;font-family:inherit}
+.seg button.on{background:var(--panel2);color:var(--text)}
+.switch{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:15px}
+.switch input{width:46px;height:26px;accent-color:var(--ok)}
+input.code{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:13px;font-size:20px;text-align:center;letter-spacing:6px;text-transform:uppercase;font-family:inherit}
+#netStatus{margin-top:12px;color:var(--muted);text-align:center;line-height:1.5}
+#netStatus b.code{display:inline-block;font-size:34px;letter-spacing:8px;color:var(--gold);margin:6px 0}
+
+.board{display:grid;grid-template-columns:repeat(10,1fr);gap:2px;aspect-ratio:1;background:var(--line);padding:3px;border-radius:14px;width:100%}
+.cell{border:0;padding:0;background:var(--water);border-radius:3px;position:relative;aspect-ratio:1;min-width:0}
+.cell.ship{background:var(--ship)}
+.cell.sel{background:var(--accent)}
+.cell.ghost{background:rgba(159,178,198,.35)}
+.cell.miss::after{content:"";position:absolute;inset:36%;border-radius:50%;background:var(--miss)}
+.cell.blocked::after{content:"";position:absolute;inset:44%;border-radius:50%;background:rgba(220,235,255,.18)}
+.cell.hit{background:var(--hit)}
+.cell.hit::after{content:"";position:absolute;inset:30%;border-radius:50%;background:#ffd0cc;animation:pulse 1.2s infinite}
+.cell.sunk{background:var(--sunk)}
+.cell.sunk::after{content:"✕";position:absolute;inset:0;display:grid;place-items:center;color:#ff9b93;font-size:min(3.4vw,16px);font-weight:700}
+.cell.last{outline:2px solid var(--gold);outline-offset:-2px;z-index:1}
+.cell.bad{animation:shake .3s}
+@keyframes pulse{50%{opacity:.4}}
+@keyframes shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+#enemyBoard.armed{box-shadow:0 0 0 2px var(--ok),0 0 24px rgba(58,210,159,.25)}
+#enemyBoard.armed .cell:not(.miss):not(.hit):not(.sunk):not(.blocked):active{background:var(--water-hi)}
+
+.status{text-align:center;font-size:19px;font-weight:700;margin:6px 0 12px;min-height:26px}
+.status.mine{color:var(--ok)}
+.status.theirs{color:var(--muted)}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.icon{background:var(--panel);border:0;color:var(--text);border-radius:12px;padding:8px 12px;font-size:15px;font-family:inherit}
+.small{font-size:13px;color:var(--muted)}
+.lower{display:flex;gap:14px;margin-top:14px;align-items:flex-start}
+.lower .mine{flex:0 0 56%}
+.fleet{flex:1}
+.fleet .ln{display:flex;gap:3px;margin:5px 0}
+.fleet .ln i{width:12px;height:12px;border-radius:3px;background:var(--ship)}
+.fleet .ln.dead i{background:var(--sunk)}
+.fleet .ln.dead{opacity:.6}
+.ships{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.chip{display:flex;gap:3px;align-items:center;background:var(--panel);border:2px solid transparent;border-radius:12px;padding:8px 10px;color:var(--text);font-family:inherit;font-size:13px}
+.chip i{width:11px;height:11px;border-radius:3px;background:var(--ship)}
+.chip.on{border-color:var(--accent)}
+.chip.done{opacity:.5}
+.chip span{margin-left:6px}
+.hint{color:var(--muted);font-size:14px;line-height:1.45;margin:0 0 12px}
+#overlay{position:fixed;inset:0;background:rgba(5,12,22,.82);display:grid;place-items:center;padding:16px;z-index:10}
+#overlay .card{max-width:400px;width:100%;text-align:center;padding:26px 20px}
+#overlay h2{font-size:30px;margin-bottom:8px}
+#toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top));transform:translateX(-50%);background:var(--panel2);padding:10px 16px;border-radius:12px;font-size:15px;z-index:20;box-shadow:0 6px 24px rgba(0,0,0,.4);max-width:90vw;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- MENU -->
+  <section id="menu">
+    <h1>⚓ Søslaget</h1>
+    <p class="sub">Find og sænk modstanderens flåde.</p>
+
+    <div class="card">
+      <p class="label">Mod computeren</p>
+      <div class="seg" id="diff">
+        <button data-v="0">Let</button>
+        <button data-v="1" class="on">Svær</button>
+      </div>
+      <div style="height:12px"></div>
+      <button class="btn" id="btnAi">Start spil</button>
+    </div>
+
+    <div class="card">
+      <p class="label">Mod en ven (online)</p>
+      <button class="btn" id="btnHost">Opret spil</button>
+      <div style="height:10px"></div>
+      <div class="row">
+        <input class="code" id="joinCode" maxlength="4" placeholder="KODE" autocomplete="off">
+        <button class="btn sec" id="btnJoin" style="flex:0 0 38%">Deltag</button>
+      </div>
+      <div id="netStatus"></div>
+    </div>
+
+    <div class="card">
+      <p class="label">Regler</p>
+      <label class="switch">Ram giver et ekstra skud <input type="checkbox" id="extra" checked></label>
+      <p class="small" style="margin:10px 0 0">Skibe må ikke røre hinanden, heller ikke på skrå. Ved online spil bestemmer den, der opretter spillet.</p>
+    </div>
+  </section>
+
+  <!-- PLACERING -->
+  <section id="place" class="hidden">
+    <div class="topbar">
+      <button class="icon" data-menu>‹ Menu</button>
+      <span class="small" id="placeMode"></span>
+    </div>
+    <h2>Placér din flåde</h2>
+    <p class="hint">Vælg et skib og tryk på feltet, hvor det skal starte. Tryk på et placeret skib for at vælge det, og tryk igen for at dreje det.</p>
+    <div class="board" id="placeBoard"></div>
+    <div class="ships" id="shipChips"></div>
+    <div class="row">
+      <button class="btn sec" id="btnRot">↻ Drej</button>
+      <button class="btn sec" id="btnRand">🎲 Tilfældig</button>
+    </div>
+    <div style="height:10px"></div>
+    <button class="btn" id="btnReady" disabled>Klar til kamp</button>
+  </section>
+
+  <!-- KAMP -->
+  <section id="battle" class="hidden">
+    <div class="topbar">
+      <button class="icon" data-menu>‹ Menu</button>
+      <span class="small" id="score"></span>
+    </div>
+    <div class="status" id="status"></div>
+    <p class="label">Modstanderens hav</p>
+    <div class="board" id="enemyBoard"></div>
+    <div class="lower">
+      <div class="mine">
+        <p class="label">Dit hav</p>
+        <div class="board" id="myBoard"></div>
+      </div>
+      <div class="fleet">
+        <p class="label">Fjenden</p>
+        <div id="enemyFleet"></div>
+        <p class="label" style="margin-top:12px">Dig</p>
+        <div id="myFleet"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="overlay" class="hidden">
+  <div class="card">
+    <h2 id="endTitle"></h2>
+    <p class="sub" id="endText" style="margin-bottom:20px"></p>
+    <button class="btn" id="btnAgain">Spil igen</button>
+    <div style="height:10px"></div>
+    <button class="btn sec" data-menu>Menu</button>
+  </div>
+</div>
+<div id="toast" class="hidden"></div>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+const N=10, FLEET=[5,4,3,3,2];
+const NAMES={5:"hangarskib",4:"slagskib",3:"krydser",2:"destroyer"};
+const idx=(r,c)=>r*N+c;
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+
+/* ---------- Bræt ---------- */
+function newBoard(){return{ships:FLEET.map(l=>({l,cells:null,hits:0})),grid:new Array(N*N).fill(-1),shots:new Array(N*N).fill(0)}}
+function shipCells(r,c,l,v){const a=[];for(let i=0;i<l;i++)a.push(v?[r+i,c]:[r,c+i]);return a}
+function fits(b,cells,ign){
+  for(const[r,c]of cells){
+    if(r<0||c<0||r>=N||c>=N)return false;
+    for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+      const rr=r+dr,cc=c+dc;if(rr<0||cc<0||rr>=N||cc>=N)continue;
+      const g=b.grid[idx(rr,cc)];if(g!==-1&&g!==ign)return false;
+    }
+  }return true;
+}
+function lift(b,k){const s=b.ships[k];if(s.cells)for(const[r,c]of s.cells)b.grid[idx(r,c)]=-1;s.cells=null}
+function put(b,k,cells){lift(b,k);b.ships[k].cells=cells;for(const[r,c]of cells)b.grid[idx(r,c)]=k}
+function isVert(s){return !!(s.cells&&s.cells[1][0]!==s.cells[0][0])}
+function randomize(b){
+  for(let t=0;t<500;t++){
+    b.grid.fill(-1);b.ships.forEach(s=>s.cells=null);let ok=true;
+    for(let k=0;k<b.ships.length&&ok;k++){
+      ok=false;const l=b.ships[k].l;
+      for(let a=0;a<300;a++){
+        const v=Math.random()<.5;
+        const r=Math.floor(Math.random()*(v?N-l+1:N)),c=Math.floor(Math.random()*(v?N:N-l+1));
+        const cells=shipCells(r,c,l,v);
+        if(fits(b,cells,k)){put(b,k,cells);ok=true;break}
+      }
+    }
+    if(ok)return b;
+  }return b;
+}
+function fire(b,r,c){
+  const i=idx(r,c),k=b.grid[i];
+  if(k===-1){b.shots[i]=1;return{hit:false}}
+  b.shots[i]=2;const s=b.ships[k];s.hits++;
+  if(s.hits===s.l){
+    s.cells.forEach(([rr,cc])=>b.shots[idx(rr,cc)]=3);
+    return{hit:true,sunk:s.cells,over:b.ships.every(x=>x.hits===x.l)};
+  }
+  return{hit:true};
+}
+function markSunk(view,cells){
+  for(const[r,c]of cells)view[idx(r,c)]=3;
+  for(const[r,c]of cells)for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+    const rr=r+dr,cc=c+dc;if(rr<0||cc<0||rr>=N||cc>=N)continue;
+    if(view[idx(rr,cc)]===0)view[idx(rr,cc)]=4;
+  }
+}
+function removeLen(arr,l){const j=arr.indexOf(l);if(j>=0)arr.splice(j,1)}
+
+/* ---------- Computer-modstander ---------- */
+function aiPick(view,rem,hard){
+  const open=[],hits=[];
+  for(let i=0;i<N*N;i++){if(view[i]===0)open.push(i);else if(view[i]===2)hits.push(i)}
+  if(!hard){
+    if(hits.length){
+      const cand=[];
+      for(const h of hits){const r=h/N|0,c=h%N;
+        for(const[dr,dc]of[[1,0],[-1,0],[0,1],[0,-1]]){const rr=r+dr,cc=c+dc;
+          if(rr>=0&&cc>=0&&rr<N&&cc<N&&view[idx(rr,cc)]===0)cand.push(idx(rr,cc))}}
+      if(cand.length&&Math.random()<.8)return pick(cand);
+    }
+    return pick(open);
+  }
+  // Sandsynlighedskort: tæl alle mulige placeringer af de resterende skibe
+  const sc=new Array(N*N).fill(0);
+  for(const l of rem)for(let v=0;v<2;v++)for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const cells=shipCells(r,c,l,v);let ok=true,hc=0;
+    for(const[rr,cc]of cells){if(rr>=N||cc>=N){ok=false;break}
+      const s=view[idx(rr,cc)];if(s===2)hc++;else if(s!==0){ok=false;break}}
+    if(!ok||(hits.length&&!hc))continue;
+    const w=hc?Math.pow(10,hc):1;
+    for(const[rr,cc]of cells){const j=idx(rr,cc);if(view[j]===0)sc[j]+=w}
+  }
+  let best=-1,bs=[];
+  for(const i of open){if(sc[i]>best){best=sc[i];bs=[i]}else if(sc[i]===best)bs.push(i)}
+  return pick(bs.length?bs:open);
+}
+
+/* ---------- Lyd og vibration ---------- */
+let AC=null;
+function tone(f,d,type,vol,slide){try{
+  AC=AC||new(window.AudioContext||window.webkitAudioContext)();
+  const o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime;
+  o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.001,t+d);
+  o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d);
+}catch(e){}}
+const vib=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
+const sfx={
+  miss(){tone(520,.28,"sine",.12,140)},
+  hit(){tone(140,.4,"sawtooth",.22,45);vib(60)},
+  sunk(){tone(110,.8,"sawtooth",.28,30);setTimeout(()=>tone(70,.6,"square",.12,30),120);vib([80,50,140])},
+};
+
+/* ---------- Spiltilstand ---------- */
+const G={mode:null,hard:true,extra:true,round:0,my:null,enemy:null,view:null,aiView:null,aiRem:null,
+  enemyRem:null,myTurn:false,started:false,over:false,myReady:false,oppReadyRound:-1,pending:false,
+  shots:0,hitsN:0,lastMine:-1,lastEnemy:-1,reveal:false,wins:0,losses:0};
+let sel=0,vert=false;
+
+function show(id){for(const s of["menu","place","battle"])$("#"+s).classList.toggle("hidden",s!==id)}
+let toastT;
+function toast(msg,ms=2200){const t=$("#toast");t.textContent=msg;t.classList.remove("hidden");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.add("hidden"),ms)}
+
+function makeBoard(el,onTap){
+  el.innerHTML="";
+  for(let i=0;i<N*N;i++){const b=document.createElement("button");b.className="cell";b.dataset.i=i;el.appendChild(b)}
+  if(onTap)el.addEventListener("click",e=>{const b=e.target.closest(".cell");if(b)onTap(+b.dataset.i,b)});
+}
+makeBoard($("#placeBoard"),placeTap);
+makeBoard($("#enemyBoard"),shoot);
+makeBoard($("#myBoard"),null);
+
+/* ---------- Placering ---------- */
+function startMatch(mode){G.mode=mode;G.round=0;G.wins=0;G.losses=0;G.oppReadyRound=-1;nextRound()}
+function nextRound(){
+  G.round++;
+  Object.assign(G,{my:newBoard(),enemy:null,view:new Array(N*N).fill(0),aiView:null,aiRem:null,enemyRem:[...FLEET],
+    myTurn:false,started:false,over:false,myReady:false,pending:false,shots:0,hitsN:0,lastMine:-1,lastEnemy:-1,reveal:false});
+  sel=0;vert=false;
+  $("#overlay").classList.add("hidden");
+  $("#placeMode").textContent=G.mode==="ai"?"Mod computeren ("+(G.hard?"svær":"let")+")":"Online"+(G.extra?" · ekstra skud ved ram":"");
+  show("place");renderPlace();
+}
+function nextUnplaced(from){for(let j=0;j<FLEET.length;j++){const k=(from+j)%FLEET.length;if(!G.my.ships[k].cells)return k}return null}
+function placeTap(i,el){
+  const b=G.my,r=i/N|0,c=i%N,k=b.grid[i];
+  if(k!==-1&&k!==sel){sel=k;vert=isVert(b.ships[k]);renderPlace();return}
+  if(k!==-1&&k===sel){ // drej
+    const s=b.ships[k],[r0,c0]=s.cells[0],nv=!isVert(s);
+    let rr=r0,cc=c0;if(nv)rr=Math.min(rr,N-s.l);else cc=Math.min(cc,N-s.l);
+    const cells=shipCells(rr,cc,s.l,nv);
+    if(fits(b,cells,k)){put(b,k,cells);vert=nv}else bad(el);
+    renderPlace();return;
+  }
+  if(sel===null)return;
+  const l=b.ships[sel].l;let rr=r,cc=c;
+  if(vert)rr=Math.min(rr,N-l);else cc=Math.min(cc,N-l);
+  const cells=shipCells(rr,cc,l,vert);
+  if(fits(b,cells,sel)){put(b,sel,cells);const n=nextUnplaced(sel+1);sel=n;if(n!==null)vert=false}else bad(el);
+  renderPlace();
+}
+function bad(el){el.classList.remove("bad");void el.offsetWidth;el.classList.add("bad");vib(30)}
+function renderPlace(){
+  const b=G.my,cells=$("#placeBoard").children;
+  for(let i=0;i<N*N;i++){const k=b.grid[i];cells[i].className="cell"+(k===-1?"":k===sel?" sel":" ship")}
+  const wrap=$("#shipChips");wrap.innerHTML="";
+  b.ships.forEach((s,k)=>{
+    const ch=document.createElement("button");
+    ch.className="chip"+(k===sel?" on":"")+(s.cells&&k!==sel?" done":"");
+    ch.innerHTML="<i></i>".repeat(s.l)+"<span>"+NAMES[s.l]+"</span>";
+    ch.onclick=()=>{sel=k;vert=s.cells?isVert(s):vert;renderPlace()};
+    wrap.appendChild(ch);
+  });
+  $("#btnReady").disabled=!b.ships.every(s=>s.cells);
+  $("#btnRot").textContent=vert?"↻ Lodret":"↻ Vandret";
+}
+$("#btnRot").onclick=()=>{
+  vert=!vert;const b=G.my;
+  if(sel!==null&&b.ships[sel].cells){
+    const s=b.ships[sel],[r0,c0]=s.cells[0];let rr=r0,cc=c0;
+    if(vert)rr=Math.min(rr,N-s.l);else cc=Math.min(cc,N-s.l);
+    const cells=shipCells(rr,cc,s.l,vert);
+    if(fits(b,cells,sel))put(b,sel,cells);else{vert=!vert;toast("Der er ikke plads til at dreje skibet her")}
+  }
+  renderPlace();
+};
+$("#btnRand").onclick=()=>{randomize(G.my);sel=null;renderPlace()};
+$("#btnReady").onclick=()=>{
+  G.myReady=true;show("battle");
+  if(G.mode==="ai"){
+    G.enemy=randomize(newBoard());G.aiView=new Array(N*N).fill(0);G.aiRem=[...FLEET];begin();
+  }else{send({t:"ready",round:G.round});maybeBegin()}
+};
+
+/* ---------- Kamp ---------- */
+function maybeBegin(){if(G.myReady&&G.oppReadyRound===G.round&&!G.started)begin();else renderBattle()}
+function begin(){
+  G.started=true;
+  const odd=G.round%2===1;
+  G.myTurn=G.mode==="ai"?odd:(isHost===odd);
+  renderBattle();
+  if(G.mode==="ai"&&!G.myTurn)setTimeout(aiTurn,900);
+}
+function shoot(i){
+  if(!G.started||G.over||!G.myTurn||G.pending||G.view[i]!==0)return;
+  const r=i/N|0,c=i%N;
+  if(G.mode==="ai")myResult(r,c,fire(G.enemy,r,c));
+  else{G.pending=true;send({t:"shot",round:G.round,r,c});renderBattle()}
+}
+function myResult(r,c,res){
+  G.pending=false;const i=idx(r,c);G.shots++;G.lastEnemy=i;
+  if(res.hit){
+    G.hitsN++;G.view[i]=2;
+    if(res.sunk){markSunk(G.view,res.sunk);removeLen(G.enemyRem,res.sunk.length);sfx.sunk();toast("Du sænkede en "+NAMES[res.sunk.length]+"!")}
+    else sfx.hit();
+  }else{G.view[i]=1;sfx.miss()}
+  if(res.over){renderBattle();return finish(true)}
+  if(res.hit&&G.extra)G.myTurn=true;
+  else{G.myTurn=false;if(G.mode==="ai")setTimeout(aiTurn,850)}
+  renderBattle();
+}
+function receiveShot(r,c){
+  const res=fire(G.my,r,c);G.lastMine=idx(r,c);
+  if(res.hit){if(res.sunk){sfx.sunk();toast("Din "+NAMES[res.sunk.length]+" blev sænket")}else sfx.hit()}else sfx.miss();
+  if(G.mode==="online")send({t:"res",round:G.round,r,c,hit:res.hit,sunk:res.sunk||null,over:!!res.over});
+  if(res.over){G.myTurn=false;renderBattle();finish(false);return res}
+  G.myTurn=!(res.hit&&G.extra);
+  renderBattle();return res;
+}
+function aiTurn(){
+  if(G.over||G.mode!=="ai"||G.myTurn)return;
+  const i=aiPick(G.aiView,G.aiRem,G.hard),r=i/N|0,c=i%N;
+  const res=receiveShot(r,c);
+  if(res.hit){G.aiView[i]=2;if(res.sunk){markSunk(G.aiView,res.sunk);removeLen(G.aiRem,res.sunk.length)}}
+  else G.aiView[i]=1;
+  if(!G.over&&!G.myTurn)setTimeout(aiTurn,850);
+}
+function finish(won){
+  G.over=true;if(won)G.wins++;else G.losses++;
+  if(G.mode==="ai"&&!won)G.reveal=true;
+  renderBattle();
+  setTimeout(()=>{
+    $("#endTitle").textContent=won?"🏆 Du vandt!":"💥 Du tabte";
+    const pct=G.shots?Math.round(G.hitsN/G.shots*100):0;
+    $("#endText").textContent=G.shots+" skud · "+pct+" % ramte · Stilling "+G.wins+"–"+G.losses;
+    $("#overlay").classList.remove("hidden");
+  },won?700:1400);
+}
+function renderBattle(){
+  const ec=$("#enemyBoard").children,mc=$("#myBoard").children;
+  const cls=["",""," miss"," hit"," sunk"," blocked"];
+  for(let i=0;i<N*N;i++){
+    let k="cell",v=G.view[i];
+    k+=v===1?" miss":v===2?" hit":v===3?" sunk":v===4?" blocked":"";
+    if(G.reveal&&v===0&&G.enemy&&G.enemy.grid[i]!==-1)k+=" ghost";
+    if(i===G.lastEnemy)k+=" last";
+    ec[i].className=k;
+    let m="cell"+(G.my.grid[i]!==-1?" ship":"");const s=G.my.shots[i];
+    m+=s===1?" miss":s===2?" hit":s===3?" sunk":"";
+    if(i===G.lastMine)m+=" last";
+    mc[i].className=m;
+  }
+  const st=$("#status");
+  if(G.over){st.textContent="Spillet er slut";st.className="status"}
+  else if(!G.started){st.textContent="Venter på at modstanderen placerer sine skibe…";st.className="status theirs"}
+  else if(G.pending){st.textContent="Skyder…";st.className="status mine"}
+  else if(G.myTurn){st.textContent="Din tur – skyd!";st.className="status mine"}
+  else{st.textContent=G.mode==="ai"?"Computeren sigter…":"Modstanderens tur…";st.className="status theirs"}
+  $("#enemyBoard").classList.toggle("armed",G.started&&G.myTurn&&!G.over);
+  $("#score").textContent=(G.wins||G.losses)?"Stilling "+G.wins+"–"+G.losses:"";
+  // flådeoversigt
+  const rem=[...G.enemyRem];
+  $("#enemyFleet").innerHTML=FLEET.map(l=>{const alive=rem.indexOf(l);if(alive>=0)rem.splice(alive,1);return'<div class="ln'+(alive<0?" dead":"")+'">'+"<i></i>".repeat(l)+"</div>"}).join("");
+  $("#myFleet").innerHTML=G.my.ships.map(s=>'<div class="ln'+(s.hits===s.l?" dead":"")+'">'+"<i></i>".repeat(s.l)+"</div>").join("");
+}
+
+/* ---------- Online (PeerJS: telefonerne taler direkte sammen) ---------- */
+let peer=null,conn=null,isHost=false;
+const PFX="soeslaget-dk-v1-";
+function code4(){const a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="";for(let i=0;i<4;i++)s+=a[Math.random()*a.length|0];return s}
+function closeNet(){try{conn&&conn.close()}catch(e){}try{peer&&peer.destroy()}catch(e){}peer=null;conn=null}
+function send(m){try{conn&&conn.open&&conn.send(m)}catch(e){toast("Kunne ikke sende til modstanderen")}}
+function netMsg(h){$("#netStatus").innerHTML=h}
+function netErr(e){netMsg("⚠️ "+(typeof e==="string"?e:"Netværksfejl ("+(e&&e.type||"ukendt")+")"))}
+function hostGame(){
+  if(typeof Peer==="undefined")return netErr("Netværksdelen kunne ikke hentes. Tjek internetforbindelsen.");
+  closeNet();isHost=true;const code=code4();netMsg("Opretter spil…");
+  peer=new Peer(PFX+code);
+  peer.on("open",()=>netMsg('Din kode<br><b class="code">'+code+'</b><br>Bed din modstander skrive koden og trykke Deltag.'));
+  peer.on("connection",c=>{if(conn&&conn.open){c.close();return}conn=c;wire()});
+  peer.on("error",e=>{if(e.type==="unavailable-id")hostGame();else netErr(e)});
+}
+function joinGame(){
+  if(typeof Peer==="undefined")return netErr("Netværksdelen kunne ikke hentes. Tjek internetforbindelsen.");
+  const code=$("#joinCode").value.trim().toUpperCase();
+  if(code.length!==4)return netErr("Koden har 4 tegn.");
+  closeNet();isHost=false;netMsg("Forbinder…");
+  peer=new Peer();
+  peer.on("open",()=>{conn=peer.connect(PFX+code,{reliable:true});wire()});
+  peer.on("error",e=>netErr(e.type==="peer-unavailable"?"Fandt ikke spillet. Tjek koden.":e));
+}
+function wire(){
+  conn.on("open",()=>{if(isHost)send({t:"cfg",extra:G.extra});netMsg("");startMatch("online");toast("Forbundet! Placér dine skibe")});
+  conn.on("data",onMsg);
+  conn.on("close",()=>{if(G.mode==="online"){toast("Modstanderen har forladt spillet",4000);G.mode="gone"}});
+}
+function onMsg(m){
+  if(!m||!m.t)return;
+  if(m.t==="cfg"){G.extra=!!m.extra;$("#extra").checked=G.extra;
+    $("#placeMode").textContent="Online"+(G.extra?" · ekstra skud ved ram":"")}
+  else if(m.t==="ready"){G.oppReadyRound=m.round;if(m.round===G.round)maybeBegin()}
+  else if(m.t==="shot"){if(m.round===G.round&&G.started&&!G.myTurn&&!G.over)receiveShot(m.r,m.c)}
+  else if(m.t==="res"){if(m.round===G.round&&G.pending)myResult(m.r,m.c,m)}
+  else if(m.t==="again"){if(G.over)toast("Modstanderen vil gerne spille igen")}
+}
+
+/* ---------- Menu ---------- */
+$$("#diff button").forEach(b=>b.onclick=()=>{$$("#diff button").forEach(x=>x.classList.toggle("on",x===b));G.hard=b.dataset.v==="1"});
+$("#extra").onchange=e=>{G.extra=e.target.checked};
+$("#btnAi").onclick=()=>{closeNet();netMsg("");startMatch("ai")};
+$("#btnHost").onclick=hostGame;
+$("#btnJoin").onclick=joinGame;
+$("#joinCode").addEventListener("keydown",e=>{if(e.key==="Enter")joinGame()});
+$$("[data-menu]").forEach(b=>b.onclick=()=>{
+  if(G.mode==="online"&&!confirm("Forlad spillet? Forbindelsen til modstanderen lukkes."))return;
+  closeNet();G.mode=null;$("#overlay").classList.add("hidden");show("menu");
+});
+$("#btnAgain").onclick=()=>{
+  if(G.mode==="gone"){toast("Modstanderen er gået. Opret et nyt spil fra menuen.");return}
+  if(G.mode==="online")send({t:"again"});
+  nextRound();
+};
+</script>
+</body>
+</html>
